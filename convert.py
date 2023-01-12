@@ -38,9 +38,6 @@ class FisheyeCalibrator:
             cal_data = json.load(infile)
 
         try:
-            if not cal_data["use_opencv_fisheye"]:
-                raise Exception("Preset not for OpenCV fisheye lens model")
-
             print("Preset name: {}".format(cal_data["name"]))
             print("Made with {} frames using calibrator version {} on date {}"
                 .format(cal_data["num_images"],
