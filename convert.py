@@ -11,11 +11,6 @@ imageio.plugins.freeimage.download()
 
 
 class FisheyeCalibrator:
-    """Class for calculating camera matrix and distortion coefficients
-       from images or videoframes
-       Mostly based on https://stackoverflow.com/a/50876130
-       9x6 chessboard by default: https://raw.githubusercontent.com/opencv/opencv/master/doc/pattern.png
-    """
     def __init__(self, chessboard_size=(9,6)):
         pass
 
@@ -28,6 +23,32 @@ class FisheyeCalibrator:
                 img_dim, np.eye(3), fov_scale=fov_scale)
 
         map1, map2 = cv2.fisheye.initUndistortRectifyMap(self.K, self.D, np.eye(3), new_K, img_dim, cv2.CV_32FC1)
+
+        return map1/self.calib_dimension[0], map2/self.calib_dimension[1]
+
+    def get_undistort_stmap(self, fov_scale=1.0):
+        img_dim = self.calib_dimension
+
+        # Create array where each point is its own coordinate
+        inmap = np.zeros((self.calib_dimension[1], self.calib_dimension[0], 2), dtype=np.float32);
+
+        # X coordinate
+        inmap[:,:,0] = np.repeat(np.arange(self.calib_dimension[0])[None,], self.calib_dimension[1], 0)
+
+        # Y coordinate
+        inmap[:,:,1] = np.repeat(np.arange(self.calib_dimension[1])[None,], self.calib_dimension[0], 0).T
+
+
+        new_K = cv2.fisheye.estimateNewCameraMatrixForUndistortRectify(self.K, self.D,
+                img_dim, np.eye(3), fov_scale=fov_scale)
+
+        #distorted =  cv2.fisheye.distortPoints(inmap, new_K, self.D)
+        undistorted = cv2.fisheye.undistortPoints(inmap, self.K, self.D, None, np.eye(3), new_K)
+
+
+        map1 = undistorted[:,:,0]
+        map2 = undistorted[:,:,1]
+
 
         return map1/self.calib_dimension[0], map2/self.calib_dimension[1]
 
@@ -70,10 +91,6 @@ class FisheyeCalibrator:
         
 
     def load_calibration_prompt(self, printinfo = False):
-        """Trigger file browser to load calibration preset
-        Args:
-            printinfo (bool, optional): Print extra info from preset file. Defaults to False.
-        """
 
         # file browser prompt
         self.filename = askopenfilename(title = "Select calibration preset file",
@@ -85,13 +102,26 @@ class FisheyeCalibrator:
 
 if __name__ == "__main__":
     Tk().withdraw() # hide root window
+
+    maptype = input("Do you want to the undistort (1, default) or distort map (2):").strip()
+
+    do_distort = maptype == "2"
+
+    print("Distortion map selected" if do_distort else "Distortion map selected")
+
     undistort = FisheyeCalibrator()
     undistort.load_calibration_prompt()
 
-    save_name = os.path.splitext(os.path.split(undistort.filename)[-1])[0] + ".exr"
+    save_name = os.path.splitext(os.path.split(undistort.filename)[-1])[0] + ("_distort" if do_distort else "_undistort")+ ".exr"
 
     undistort_fov_scale = 1
-    map1, map2 = undistort.get_stmap(undistort_fov_scale)
+
+
+    if do_distort:
+        map1, map2 = undistort.get_undistort_stmap(undistort_fov_scale)
+    else:
+        map1, map2 = undistort.get_stmap(undistort_fov_scale)
+
 
     red, green, blue = map1, map2, map1*0.0
 
